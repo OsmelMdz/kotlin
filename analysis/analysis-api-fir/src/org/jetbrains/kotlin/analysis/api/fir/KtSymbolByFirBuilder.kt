@@ -42,7 +42,6 @@ import org.jetbrains.kotlin.analysis.api.fir.symbols.KtFirClassInitializerSymbol
 import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.types.Variance
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentMap
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.contract
@@ -56,6 +55,7 @@ internal class KtSymbolByFirBuilder private constructor(
     override val token: ValidityToken,
     val withReadOnlyCaching: Boolean,
     private val symbolsCache: BuilderCache<FirDeclaration, KtSymbol>,
+    private val extensionReceiverSymbolsCache: BuilderCache<FirCallableDeclaration, KtSymbol>,
     private val filesCache: BuilderCache<FirFile, KtFileSymbol>,
     private val backingFieldCache: BuilderCache<FirBackingField, KtBackingFieldSymbol>,
     private val typesCache: BuilderCache<ConeKotlinType, KtType>,
@@ -82,6 +82,7 @@ internal class KtSymbolByFirBuilder private constructor(
         resolveState = resolveState,
         withReadOnlyCaching = false,
         symbolsCache = BuilderCache(),
+        extensionReceiverSymbolsCache = BuilderCache(),
         typesCache = BuilderCache(),
         backingFieldCache = BuilderCache(),
         filesCache = BuilderCache(),
@@ -95,6 +96,7 @@ internal class KtSymbolByFirBuilder private constructor(
             resolveState = newResolveState,
             withReadOnlyCaching = true,
             symbolsCache = symbolsCache.createReadOnlyCopy(),
+            extensionReceiverSymbolsCache = extensionReceiverSymbolsCache.createReadOnlyCopy(),
             typesCache = typesCache.createReadOnlyCopy(),
             filesCache = filesCache.createReadOnlyCopy(),
             backingFieldCache = backingFieldCache.createReadOnlyCopy(),
@@ -336,6 +338,13 @@ internal class KtSymbolByFirBuilder private constructor(
         fun buildSetterSymbol(fir: FirPropertyAccessor): KtFirPropertySetterSymbol {
             checkRequirementForBuildingSymbol<KtFirPropertySetterSymbol>(fir, fir.isSetter)
             return symbolsCache.cache(fir) { KtFirPropertySetterSymbol(fir, resolveState, token, this@KtSymbolByFirBuilder) }
+        }
+
+        fun buildExtensionReceiverSymbol(fir: FirCallableDeclaration): KtReceiverParameterSymbol? {
+            if (fir.receiverTypeRef == null) return null
+            return extensionReceiverSymbolsCache.cache(fir) {
+                KtFirReceiverParameterSymbol(fir, resolveState, token, this@KtSymbolByFirBuilder)
+            }
         }
     }
 
