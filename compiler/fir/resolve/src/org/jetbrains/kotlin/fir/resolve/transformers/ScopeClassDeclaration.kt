@@ -10,5 +10,5 @@ import org.jetbrains.kotlin.fir.scopes.FirScope
 
 data class ScopeClassDeclaration(
     val scope: FirScope,
-    val topDeclaration: FirRegularClass?
+    val containingDeclarations: List<FirRegularClass>
 )

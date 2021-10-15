@@ -5,18 +5,14 @@
 
 package org.jetbrains.kotlin.fir.resolve.providers.impl
 
-import org.jetbrains.kotlin.fir.FirSession
-import org.jetbrains.kotlin.fir.FirSourceElement
-import org.jetbrains.kotlin.fir.ThreadSafeMutableState
-import org.jetbrains.kotlin.fir.declarations.FirEnumEntry
-import org.jetbrains.kotlin.fir.declarations.FirRegularClass
+import org.jetbrains.kotlin.fir.*
+import org.jetbrains.kotlin.fir.declarations.*
 import org.jetbrains.kotlin.fir.declarations.impl.FirOuterClassTypeParameterRef
 import org.jetbrains.kotlin.fir.declarations.utils.isEnumClass
 import org.jetbrains.kotlin.fir.declarations.utils.isLocal
 import org.jetbrains.kotlin.fir.diagnostics.ConeSimpleDiagnostic
 import org.jetbrains.kotlin.fir.diagnostics.ConeUnexpectedTypeArgumentsError
 import org.jetbrains.kotlin.fir.diagnostics.DiagnosticKind
-import org.jetbrains.kotlin.fir.render
 import org.jetbrains.kotlin.fir.resolve.*
 import org.jetbrains.kotlin.fir.resolve.diagnostics.ConeOuterClassArgumentsRequired
 import org.jetbrains.kotlin.fir.resolve.diagnostics.ConeUnresolvedQualifierError
@@ -24,7 +20,6 @@ import org.jetbrains.kotlin.fir.resolve.diagnostics.ConeUnsupportedDynamicType
 import org.jetbrains.kotlin.fir.resolve.diagnostics.ConeWrongNumberOfTypeArgumentsError
 import org.jetbrains.kotlin.fir.resolve.substitution.ConeSubstitutor
 import org.jetbrains.kotlin.fir.resolve.transformers.ScopeClassDeclaration
-import org.jetbrains.kotlin.fir.scopes.FirScope
 import org.jetbrains.kotlin.fir.symbols.ConeTypeParameterLookupTag
 import org.jetbrains.kotlin.fir.symbols.FirBasedSymbol
 import org.jetbrains.kotlin.fir.symbols.SymbolInternals
@@ -55,9 +50,52 @@ class FirTypeResolverImpl(private val session: FirSession) : FirTypeResolver() {
         }
     }
 
+    private fun transformSymbol(
+        symbol: FirBasedSymbol<*>,
+        qualifier: List<FirQualifierPart>,
+        qualifierResolver: FirQualifierResolver,
+    ): FirBasedSymbol<*>? {
+        return when (symbol) {
+            is FirClassLikeSymbol<*> -> {
+                if (qualifier.size == 1) {
+                    symbol
+                } else {
+                    resolveLocalClassChain(symbol, qualifier)
+                        ?: qualifierResolver.resolveSymbolWithPrefix(qualifier, symbol.classId)
+                        ?: qualifierResolver.resolveEnumEntrySymbol(qualifier, symbol.classId)
+                }
+            }
+            is FirTypeParameterSymbol -> {
+                assert(qualifier.size == 1)
+                symbol
+            }
+            else -> error("!")
+        }
+    }
+
+    private fun FirBasedSymbol<*>?.isApplicable(
+        useSiteFile: FirFile?,
+        containingDeclarations: List<FirDeclaration>,
+    ): Boolean {
+        val declaration = this?.fir
+        return if (useSiteFile != null && declaration is FirMemberDeclaration) {
+            session.visibilityChecker.isVisible(
+                declaration,
+                session,
+                useSiteFile,
+                containingDeclarations,
+                null,
+                false,
+            )
+        } else {
+            true
+        }
+    }
+
     private fun resolveToSymbol(
         typeRef: FirTypeRef,
-        scope: FirScope,
+        scopeClassDeclaration: ScopeClassDeclaration,
+        useSiteFile: FirFile?,
     ): Pair<FirBasedSymbol<*>?, ConeSubstitutor?> {
         return when (typeRef) {
             is FirResolvedTypeRef -> {
@@ -68,27 +106,29 @@ class FirTypeResolverImpl(private val session: FirSession) : FirTypeResolver() {
             is FirUserTypeRef -> {
                 val qualifierResolver = session.qualifierResolver
                 var resolvedSymbol: FirBasedSymbol<*>? = null
+                var firstNonApplicable: FirBasedSymbol<*>? = null
                 var substitutor: ConeSubstitutor? = null
                 val qualifier = typeRef.qualifier
+                val scope = scopeClassDeclaration.scope
+                val containingDeclarations = scopeClassDeclaration.containingDeclarations
+
                 scope.processClassifiersByNameWithSubstitution(qualifier.first().name) { symbol, substitutorFromScope ->
-                    if (resolvedSymbol != null) return@processClassifiersByNameWithSubstitution
-                    resolvedSymbol = when (symbol) {
-                        is FirClassLikeSymbol<*> -> {
-                            if (qualifier.size == 1) {
-                                symbol
-                            } else {
-                                resolveLocalClassChain(symbol, qualifier)
-                                    ?: qualifierResolver.resolveSymbolWithPrefix(qualifier, symbol.classId)
-                                    ?: qualifierResolver.resolveEnumEntrySymbol(qualifier, symbol.classId)
-                            }
-                        }
-                        is FirTypeParameterSymbol -> {
-                            assert(qualifier.size == 1)
-                            symbol
-                        }
-                        else -> error("!")
+                    if (resolvedSymbol != null) {
+                        return@processClassifiersByNameWithSubstitution
                     }
-                    substitutor = substitutorFromScope
+
+                    val transformedSymbol = transformSymbol(symbol, qualifier, qualifierResolver)
+
+                    if (transformedSymbol.isApplicable(useSiteFile, containingDeclarations)) {
+                        resolvedSymbol = transformedSymbol
+                        substitutor = substitutorFromScope
+                    } else {
+                        firstNonApplicable = transformedSymbol
+                    }
+                }
+
+                if (resolvedSymbol == null) {
+                    resolvedSymbol = firstNonApplicable
                 }
 
                 // TODO: Imports
@@ -373,18 +413,19 @@ class FirTypeResolverImpl(private val session: FirSession) : FirTypeResolver() {
         typeRef: FirTypeRef,
         scopeClassDeclaration: ScopeClassDeclaration,
         areBareTypesAllowed: Boolean,
-        isOperandOfIsOperator: Boolean
+        isOperandOfIsOperator: Boolean,
+        useSiteFile: FirFile?,
     ): ConeKotlinType {
         return when (typeRef) {
             is FirResolvedTypeRef -> typeRef.type
             is FirUserTypeRef -> {
-                val (symbol, substitutor) = resolveToSymbol(typeRef, scopeClassDeclaration.scope)
+                val (symbol, substitutor) = resolveToSymbol(typeRef, scopeClassDeclaration, useSiteFile)
                 resolveUserType(
                     typeRef,
                     symbol,
                     substitutor,
                     areBareTypesAllowed,
-                    scopeClassDeclaration.topDeclaration,
+                    scopeClassDeclaration.containingDeclarations.lastOrNull(),
                     isOperandOfIsOperator
                 )
             }

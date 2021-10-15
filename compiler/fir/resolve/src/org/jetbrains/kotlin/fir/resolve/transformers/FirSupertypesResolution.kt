@@ -302,7 +302,7 @@ open class FirSupertypeResolverVisitor(
         val transformer = FirSpecificTypeResolverTransformer(session)
         val resolvedTypesRefs = resolveSuperTypeRefs(
             transformer,
-            ScopeClassDeclaration(FirCompositeScope(scopes), classDeclarationsStack.lastOrNull())
+            ScopeClassDeclaration(FirCompositeScope(scopes), classDeclarationsStack)
         )
 
         supertypeComputationSession.storeSupertypes(classLikeDeclaration, resolvedTypesRefs)
