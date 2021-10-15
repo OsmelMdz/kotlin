@@ -6,6 +6,11 @@
 package org.jetbrains.kotlin.idea.references
 
 import com.intellij.psi.tree.TokenSet
+import org.jetbrains.kotlin.analysis.api.fir.*
+import org.jetbrains.kotlin.analysis.api.fir.symbols.KtFirPackageSymbol
+import org.jetbrains.kotlin.analysis.api.symbols.KtSymbol
+import org.jetbrains.kotlin.analysis.low.level.api.fir.api.getOrBuildFir
+import org.jetbrains.kotlin.analysis.low.level.api.fir.api.getOrBuildFirSafe
 import org.jetbrains.kotlin.fir.*
 import org.jetbrains.kotlin.fir.declarations.*
 import org.jetbrains.kotlin.fir.declarations.builder.buildImport
@@ -26,14 +31,6 @@ import org.jetbrains.kotlin.fir.scopes.processClassifiersByName
 import org.jetbrains.kotlin.fir.symbols.FirBasedSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.ConeClassLikeLookupTagImpl
 import org.jetbrains.kotlin.fir.types.*
-import org.jetbrains.kotlin.analysis.api.fir.getCandidateSymbols
-import org.jetbrains.kotlin.analysis.low.level.api.fir.api.getOrBuildFir
-import org.jetbrains.kotlin.analysis.low.level.api.fir.api.getOrBuildFirSafe
-import org.jetbrains.kotlin.analysis.api.fir.KtFirAnalysisSession
-import org.jetbrains.kotlin.analysis.api.fir.KtSymbolByFirBuilder
-import org.jetbrains.kotlin.analysis.api.fir.buildSymbol
-import org.jetbrains.kotlin.analysis.api.fir.symbols.KtFirPackageSymbol
-import org.jetbrains.kotlin.analysis.api.symbols.KtSymbol
 import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.name.FqName
@@ -186,7 +183,7 @@ internal object FirReferenceResolveHelper {
             is FirErrorNamedReference -> getSymbolsByErrorNamedReference(fir, symbolBuilder)
             is FirVariableAssignment -> getSymbolsByVariableAssignment(fir, session, symbolBuilder)
             is FirResolvedNamedReference -> getSymbolByResolvedNameReference(fir, expression, analysisSession, session, symbolBuilder)
-            is FirResolvable -> getSymbolsByResolvable(fir, session, symbolBuilder)
+            is FirResolvable -> getSymbolsByResolvable(fir, expression, session, symbolBuilder)
             is FirNamedArgumentExpression -> getSymbolsByNameArgumentExpression(expression, analysisSession, symbolBuilder)
             else -> handleUnknownFirElement(expression, analysisSession, session, symbolBuilder)
         }
@@ -211,7 +208,7 @@ internal object FirReferenceResolveHelper {
         if (parentAsCall != null) {
             val firResolvable = parentAsCall.getOrBuildFirSafe<FirResolvable>(analysisSession.firResolveState)
             if (firResolvable != null) {
-                return getSymbolsByResolvable(firResolvable, session, symbolBuilder)
+                return getSymbolsByResolvable(firResolvable, expression, session, symbolBuilder)
             }
         }
         return fir.toTargetSymbol(session, symbolBuilder)
@@ -284,10 +281,23 @@ internal object FirReferenceResolveHelper {
 
     private fun getSymbolsByResolvable(
         fir: FirResolvable,
+        expression: KtSimpleNameExpression,
         session: FirSession,
         symbolBuilder: KtSymbolByFirBuilder
     ): Collection<KtSymbol> {
-        val calleeReference = fir.calleeReference
+        val calleeReference =
+            if (fir is FirFunctionCall &&
+                fir.isImplicitFunctionCall() &&
+                expression is KtNameReferenceExpression
+            ) {
+                // we are resolving implicit invoke call, like
+                // fun foo(a: () -> Unit) {
+                //     <expression>a</expression>()
+                // }
+                val receiver =
+                    fir.dispatchReceiver as? FirQualifiedAccessExpression ?: fir.extensionReceiver as FirQualifiedAccessExpression
+                receiver.calleeReference
+            } else fir.calleeReference
         return calleeReference.toTargetSymbol(session, symbolBuilder)
     }
 
