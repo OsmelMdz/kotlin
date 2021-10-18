@@ -225,7 +225,7 @@ public:
         objectFactoryThreadQueue_.Publish();
         auto& weakCounter = WeakCounter::FromObjHeader(weakCounterHeader);
         auto& extraObjectData = mm::ExtraObjectData::GetOrInstall(objHeader);
-        *extraObjectData.GetWeakCounterLocation() = weakCounter.header();
+        extraObjectData.SetWeakReferenceCounter(weakCounter.header());
         weakCounter->referred = objHeader;
         return weakCounter;
     }

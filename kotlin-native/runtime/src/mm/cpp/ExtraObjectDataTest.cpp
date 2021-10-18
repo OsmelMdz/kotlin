@@ -38,6 +38,8 @@ TEST(ExtraObjectDataTest, Install) {
     EXPECT_TRUE(object.header()->has_meta_object());
     EXPECT_THAT(object.header()->meta_object(), extraData.AsMetaObjHeader());
     EXPECT_THAT(object.header()->type_info(), typeInfo);
+    EXPECT_FALSE(extraData.HasWeakReferenceCounter());
+    EXPECT_THAT(extraData.GetBaseObject(), object.header());
 
     mm::ExtraObjectData::Uninstall(object.header());
 
@@ -56,22 +58,30 @@ TEST(ExtraObjectDataTest, ConcurrentInstall) {
     std::atomic<int> readyCount(0);
     std::vector<std::thread> threads;
     std::vector<mm::ExtraObjectData*> actual(kThreadCount, nullptr);
+    std::atomic<int> doneCount(0);
+    std::atomic<bool> canFinish(false);
 
     for (int i = 0; i < kThreadCount; ++i) {
-        threads.emplace_back([i, &actual, &object, &canStart, &readyCount]() {
+        threads.emplace_back([i, &actual, &object, &canStart, &readyCount, &doneCount, &canFinish]() {
             ScopedMemoryInit init;
             ++readyCount;
             while (!canStart) {
             }
             auto& extraData = mm::ExtraObjectData::Install(object.header());
             actual[i] = &extraData;
+            ++doneCount;
+            while (!canFinish) {
+
+            }
         });
     }
 
     while (readyCount < kThreadCount) {
     }
     canStart = true;
-
+    while (doneCount < kThreadCount) {
+    }
+    canFinish = true;
     for (auto& t : threads) {
         t.join();
     }

@@ -208,7 +208,7 @@ WeakCounter& InstallWeakCounter(mm::ThreadData& threadData, ObjHeader* objHeader
     mm::AllocateObject(&threadData, typeHolderWeakCounter.typeInfo(), location);
     auto& weakCounter = WeakCounter::FromObjHeader(*location);
     auto& extraObjectData = mm::ExtraObjectData::GetOrInstall(objHeader);
-    *extraObjectData.GetWeakCounterLocation() = weakCounter.header();
+    extraObjectData.SetWeakReferenceCounter(weakCounter.header());
     weakCounter->referred = objHeader;
     return weakCounter;
 }
