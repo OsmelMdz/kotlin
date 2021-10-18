@@ -61,9 +61,6 @@ class FirJavaClass @FirImplementationDetail internal constructor(
 
     override val attributes: FirDeclarationAttributes = FirDeclarationAttributes()
 
-    override val companionObject: FirRegularClass?
-        get() = null
-
     override fun replaceSuperTypeRefs(newSuperTypeRefs: List<FirTypeRef>) {
         superTypeRefs.clear()
         superTypeRefs.addAll(newSuperTypeRefs)
@@ -116,10 +113,6 @@ class FirJavaClass @FirImplementationDetail internal constructor(
         return this
     }
 
-    override fun <D> transformCompanionObject(transformer: FirTransformer<D>, data: D): FirJavaClass {
-        return this
-    }
-
     override fun <D> transformTypeParameters(transformer: FirTransformer<D>, data: D): FirRegularClass {
         typeParameters.transformInplace(transformer, data)
         return this
@@ -165,13 +158,6 @@ internal class FirJavaClassBuilder : FirRegularClassBuilder(), FirAnnotationCont
             existingNestedClassifierNames
         )
     }
-
-    @Deprecated("Modification of 'hasLazyNestedClassifiers' has no impact for FirRegularClassImplBuilder", level = DeprecationLevel.HIDDEN)
-    override var companionObject: FirRegularClass?
-        get() = throw IllegalStateException()
-        set(@Suppress("UNUSED_PARAMETER") value) {
-            throw IllegalStateException()
-        }
 
     @Deprecated("Modification of 'origin' has no impact for FirJavaClassBuilder", level = DeprecationLevel.HIDDEN)
     override var origin: FirDeclarationOrigin

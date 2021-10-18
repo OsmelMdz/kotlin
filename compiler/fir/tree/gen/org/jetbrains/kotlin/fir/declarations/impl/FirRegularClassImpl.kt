@@ -45,7 +45,6 @@ internal class FirRegularClassImpl(
     override var status: FirDeclarationStatus,
     override val name: Name,
     override val symbol: FirRegularClassSymbol,
-    override var companionObject: FirRegularClass?,
     override val superTypeRefs: MutableList<FirTypeRef>,
 ) : FirRegularClass() {
     override var controlFlowGraphReference: FirControlFlowGraphReference? = null
@@ -70,7 +69,6 @@ internal class FirRegularClassImpl(
         transformAnnotations(transformer, data)
         transformStatus(transformer, data)
         controlFlowGraphReference = controlFlowGraphReference?.transform(transformer, data)
-        companionObject = declarations.asSequence().filterIsInstance<FirRegularClass>().firstOrNull { it.status.isCompanion }
         transformSuperTypeRefs(transformer, data)
         return this
     }
@@ -92,11 +90,6 @@ internal class FirRegularClassImpl(
 
     override fun <D> transformStatus(transformer: FirTransformer<D>, data: D): FirRegularClassImpl {
         status = status.transform(transformer, data)
-        return this
-    }
-
-    override fun <D> transformCompanionObject(transformer: FirTransformer<D>, data: D): FirRegularClassImpl {
-        companionObject = companionObject?.transform(transformer, data)
         return this
     }
 

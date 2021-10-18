@@ -7,6 +7,7 @@ package org.jetbrains.kotlin.fir.expressions.impl
 
 import org.jetbrains.kotlin.fir.FirSourceElement
 import org.jetbrains.kotlin.fir.declarations.FirRegularClass
+import org.jetbrains.kotlin.fir.declarations.companionObjectSymbol
 import org.jetbrains.kotlin.fir.diagnostics.ConeDiagnostic
 import org.jetbrains.kotlin.fir.expressions.FirAnnotation
 import org.jetbrains.kotlin.fir.expressions.FirResolvedQualifier
@@ -36,7 +37,7 @@ internal class FirResolvedQualifierImpl(
     override val classId: ClassId? get() = relativeClassFqName?.let {
     ClassId(packageFqName, it, false)
 }
-    override var resolvedToCompanionObject: Boolean = (symbol?.fir as? FirRegularClass)?.companionObject != null
+    override var resolvedToCompanionObject: Boolean = (symbol?.fir as? FirRegularClass)?.companionObjectSymbol != null
 
     override fun <R, D> acceptChildren(visitor: FirVisitor<R, D>, data: D) {
         typeRef.accept(visitor, data)

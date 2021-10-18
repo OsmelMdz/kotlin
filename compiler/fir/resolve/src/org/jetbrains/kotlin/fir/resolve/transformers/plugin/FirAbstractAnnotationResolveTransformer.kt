@@ -45,7 +45,6 @@ internal abstract class FirAbstractAnnotationResolveTransformer<D, S>(
         return transformAnnotatedDeclaration(regularClass, data).also {
             val state = beforeChildren(regularClass)
             regularClass.transformDeclarations(this, data)
-            regularClass.transformCompanionObject(this, data)
             regularClass.transformSuperTypeRefs(this, data)
             afterChildren(state)
         } as FirStatement

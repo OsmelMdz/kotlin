@@ -1141,6 +1141,7 @@ open class RawFirBuilder(
                 }
             }.also {
                 it.initContainingClassForLocalAttr()
+                it.initCompanionObjectSymbolAttr()
                 classOrObject.fillDanglingConstraintsTo(it)
             }
         }

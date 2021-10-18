@@ -562,6 +562,7 @@ class DeclarationsConverter(
             }
         }.also {
             it.initContainingClassForLocalAttr()
+            it.initCompanionObjectSymbolAttr()
             fillDanglingConstraintsTo(firTypeParameters, typeConstraints, it)
         }
     }

@@ -51,7 +51,6 @@ open class FirRegularClassBuilder : FirClassBuilder, FirTypeParameterRefsOwnerBu
     open lateinit var status: FirDeclarationStatus
     open lateinit var name: Name
     open lateinit var symbol: FirRegularClassSymbol
-    open var companionObject: FirRegularClass? = null
     override val superTypeRefs: MutableList<FirTypeRef> = mutableListOf()
 
     override fun build(): FirRegularClass {
@@ -70,7 +69,6 @@ open class FirRegularClassBuilder : FirClassBuilder, FirTypeParameterRefsOwnerBu
             status,
             name,
             symbol,
-            companionObject,
             superTypeRefs,
         )
     }
@@ -105,7 +103,6 @@ inline fun buildRegularClassCopy(original: FirRegularClass, init: FirRegularClas
     copyBuilder.status = original.status
     copyBuilder.name = original.name
     copyBuilder.symbol = original.symbol
-    copyBuilder.companionObject = original.companionObject
     copyBuilder.superTypeRefs.addAll(original.superTypeRefs)
     return copyBuilder.apply(init).build()
 }

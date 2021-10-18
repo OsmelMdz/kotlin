@@ -15,9 +15,7 @@ import org.jetbrains.kotlin.fir.declarations.*
 import org.jetbrains.kotlin.fir.declarations.builder.*
 import org.jetbrains.kotlin.fir.declarations.comparators.FirMemberDeclarationComparator
 import org.jetbrains.kotlin.fir.declarations.impl.FirResolvedDeclarationStatusImpl
-import org.jetbrains.kotlin.fir.declarations.utils.addDeclarations
-import org.jetbrains.kotlin.fir.declarations.utils.moduleName
-import org.jetbrains.kotlin.fir.declarations.utils.sourceElement
+import org.jetbrains.kotlin.fir.declarations.utils.*
 import org.jetbrains.kotlin.fir.expressions.FirAnnotation
 import org.jetbrains.kotlin.fir.scopes.FirScopeProvider
 import org.jetbrains.kotlin.fir.symbols.ConeTypeParameterLookupTag
@@ -218,6 +216,9 @@ fun deserializeClassToSymbol(
         classProto.getExtensionOrNull(JvmProtoBuf.classModuleName)?.let { idx ->
             it.moduleName = nameResolver.getString(idx)
         }
+
+        val companionObject = it.declarations.firstOrNull { it is FirRegularClass && it.isCompanion } as FirRegularClass?
+        it.companionObjectSymbol = companionObject?.symbol
     }
 }
 

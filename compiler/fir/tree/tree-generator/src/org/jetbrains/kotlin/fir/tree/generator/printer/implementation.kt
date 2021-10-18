@@ -225,10 +225,6 @@ fun SmartPrinter.printImplementation(implementation: Implementation) {
 
                             field.name in setOf("dispatchReceiver", "extensionReceiver") -> {}
 
-                            field.name == "companionObject" -> {
-                                println("companionObject = declarations.asSequence().filterIsInstance<FirRegularClass>().firstOrNull { it.status.isCompanion }")
-                            }
-
                             field.needsSeparateTransform -> {
                                 if (!(element.needTransformOtherChildren && field.needTransformInOtherChildren)) {
                                     println("transform${field.name.replaceFirstChar(Char::uppercaseChar)}(transformer, data)")
