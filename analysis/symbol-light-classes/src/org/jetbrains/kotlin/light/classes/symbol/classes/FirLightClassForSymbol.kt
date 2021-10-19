@@ -121,6 +121,7 @@ internal class FirLightClassForSymbol(
         addMethodsFromCompanionIfNeeded(result)
 
         addMethodsFromDataClass(result)
+        addDelegatesToInterfaceMethods(result)
 
         result
     }
@@ -182,6 +183,34 @@ internal class FirLightClassForSymbol(
 
     private val Name.isFromAny: Boolean
         get() = this == EQUALS || this == HASHCODE_NAME || this == TO_STRING
+
+    private fun addDelegatesToInterfaceMethods(result: MutableList<KtLightMethod>) {
+
+        fun createDelegateMethod(ktFunctionSymbol: KtFunctionSymbol) {
+            val lightMemberOrigin = LightMemberOriginForDeclaration(this.kotlinOrigin!!, JvmDeclarationOriginKind.DELEGATION)
+            result.add(
+                FirLightSimpleMethodForSymbol(
+                    functionSymbol = ktFunctionSymbol,
+                    lightMemberOrigin = lightMemberOrigin,
+                    containingClass = this,
+                    isTopLevel = false,
+                    methodIndex = METHOD_INDEX_BASE,
+                    suppressStatic = false
+                )
+            )
+        }
+
+        analyzeWithSymbolAsContext(classOrObjectSymbol) {
+            // NB: delegated members are not available at _declared_ member scope.
+            // Thus, use member scope to get "all" callable members, including members from (interface) supertypes,
+            // and accept fake overrides with delegated origin to create delegate methods.
+            classOrObjectSymbol.getMemberScope().getCallableSymbols().forEach { functionSymbol ->
+                if (functionSymbol is KtFunctionSymbol && functionSymbol.origin == KtSymbolOrigin.DELEGATED) {
+                    createDelegateMethod(functionSymbol)
+                }
+            }
+        }
+    }
 
     private val _ownFields: List<KtLightField> by lazyPub {
 
