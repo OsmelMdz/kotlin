@@ -50,7 +50,7 @@ class FirTypeResolverImpl(private val session: FirSession) : FirTypeResolver() {
         }
     }
 
-    private fun transformSymbol(
+    private fun resolveSymbol(
         symbol: FirBasedSymbol<*>,
         qualifier: List<FirQualifierPart>,
         qualifierResolver: FirQualifierResolver,
@@ -73,7 +73,7 @@ class FirTypeResolverImpl(private val session: FirSession) : FirTypeResolver() {
         }
     }
 
-    private fun FirBasedSymbol<*>?.isApplicable(
+    private fun FirBasedSymbol<*>?.isVisible(
         useSiteFile: FirFile?,
         containingDeclarations: List<FirDeclaration>,
     ): Boolean {
@@ -105,7 +105,7 @@ class FirTypeResolverImpl(private val session: FirSession) : FirTypeResolver() {
 
             is FirUserTypeRef -> {
                 val qualifierResolver = session.qualifierResolver
-                var resolvedSymbol: FirBasedSymbol<*>? = null
+                var acceptedSymbol: FirBasedSymbol<*>? = null
                 var firstNonApplicable: FirBasedSymbol<*>? = null
                 var substitutor: ConeSubstitutor? = null
                 val qualifier = typeRef.qualifier
@@ -113,26 +113,26 @@ class FirTypeResolverImpl(private val session: FirSession) : FirTypeResolver() {
                 val containingDeclarations = scopeClassDeclaration.containingDeclarations
 
                 scope.processClassifiersByNameWithSubstitution(qualifier.first().name) { symbol, substitutorFromScope ->
-                    if (resolvedSymbol != null) {
+                    if (acceptedSymbol != null) {
                         return@processClassifiersByNameWithSubstitution
                     }
 
-                    val transformedSymbol = transformSymbol(symbol, qualifier, qualifierResolver)
+                    val resolvedSymbol = resolveSymbol(symbol, qualifier, qualifierResolver)
 
-                    if (transformedSymbol.isApplicable(useSiteFile, containingDeclarations)) {
-                        resolvedSymbol = transformedSymbol
+                    if (resolvedSymbol.isVisible(useSiteFile, containingDeclarations)) {
+                        acceptedSymbol = resolvedSymbol
                         substitutor = substitutorFromScope
                     } else {
-                        firstNonApplicable = transformedSymbol
+                        firstNonApplicable = resolvedSymbol
                     }
                 }
 
-                if (resolvedSymbol == null) {
-                    resolvedSymbol = firstNonApplicable
+                if (acceptedSymbol == null) {
+                    acceptedSymbol = firstNonApplicable
                 }
 
                 // TODO: Imports
-                val resultSymbol: FirBasedSymbol<*>? = resolvedSymbol ?: qualifierResolver.resolveSymbol(qualifier)
+                val resultSymbol: FirBasedSymbol<*>? = acceptedSymbol ?: qualifierResolver.resolveSymbol(qualifier)
                 resultSymbol to substitutor
             }
 
