@@ -68,7 +68,10 @@ class FirTypeResolverImpl(private val session: FirSession) : FirTypeResolver() {
                 var resolvedSymbol: FirBasedSymbol<*>? = null
                 var substitutor: ConeSubstitutor? = null
                 val qualifier = typeRef.qualifier
-                scopes.forEach { scope ->
+                for (scope in scopes) {
+                    if (resolvedSymbol != null) {
+                        break
+                    }
                     scope.processClassifiersByNameWithSubstitution(qualifier.first().name) { symbol, substitutorFromScope ->
                         if (resolvedSymbol != null) return@processClassifiersByNameWithSubstitution
                         resolvedSymbol = when (symbol) {
