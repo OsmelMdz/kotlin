@@ -49,6 +49,8 @@ interface ImplicitScopeTower {
 
     val isNewInferenceEnabled: Boolean
 
+    val areContextReceiversEnabled: Boolean
+
     val typeApproximator: TypeApproximator
 
     val implicitsResolutionFilter: ImplicitsExtensionsResolutionFilter
