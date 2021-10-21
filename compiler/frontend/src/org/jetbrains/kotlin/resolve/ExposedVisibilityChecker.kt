@@ -21,6 +21,7 @@ import org.jetbrains.kotlin.config.LanguageFeature
 import org.jetbrains.kotlin.config.LanguageVersionSettings
 import org.jetbrains.kotlin.descriptors.*
 import org.jetbrains.kotlin.diagnostics.DiagnosticFactory3
+import org.jetbrains.kotlin.diagnostics.DiagnosticFactoryForDeprecation3
 import org.jetbrains.kotlin.diagnostics.Errors.*
 import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.psi.psiUtil.visibilityModifier
@@ -52,6 +53,17 @@ class ExposedVisibilityChecker(
         }
     }
 
+    private fun <E : PsiElement> reportExposureForDeprecation(
+        diagnostic: DiagnosticFactoryForDeprecation3<E, EffectiveVisibility, DescriptorWithRelation, EffectiveVisibility>,
+        element: E,
+        elementVisibility: EffectiveVisibility,
+        restrictingDescriptor: DescriptorWithRelation
+    ) {
+        val trace = trace ?: return
+        val restrictingVisibility = restrictingDescriptor.effectiveVisibility()
+        trace.report(diagnostic.on(languageVersionSettings, element, elementVisibility, restrictingDescriptor, restrictingVisibility))
+    }
+
     // NB: does not check any members
     fun checkClassHeader(klass: KtClassOrObject, classDescriptor: ClassDescriptor): Boolean {
         var result = checkSupertypes(klass, classDescriptor)
@@ -60,22 +72,6 @@ class ExposedVisibilityChecker(
         val constructor = klass.primaryConstructor ?: return result
         val constructorDescriptor = classDescriptor.unsubstitutedPrimaryConstructor ?: return result
         return result and checkFunction(constructor, constructorDescriptor)
-    }
-
-    fun checkDeclarationWithVisibility(
-        modifierListOwner: KtModifierListOwner,
-        descriptor: DeclarationDescriptorWithVisibility,
-        visibility: DescriptorVisibility
-    ): Boolean {
-        return when {
-            modifierListOwner is KtFunction &&
-                    descriptor is FunctionDescriptor -> checkFunction(modifierListOwner, descriptor, visibility)
-
-            modifierListOwner is KtProperty &&
-                    descriptor is PropertyDescriptor -> checkProperty(modifierListOwner, descriptor, visibility)
-
-            else -> true
-        }
     }
 
     fun checkTypeAlias(typeAlias: KtTypeAlias, typeAliasDescriptor: TypeAliasDescriptor) {
@@ -119,8 +115,11 @@ class ExposedVisibilityChecker(
                     val propertyOrClassVisibility = (propertyDescriptor ?: functionDescriptor.constructedClass).effectiveVisibility()
                     val restrictingByProperty = parameterDescriptor.type.leastPermissiveDescriptor(propertyOrClassVisibility)
                     if (restrictingByProperty != null) {
-                        reportExposure(
-                            EXPOSED_PROPERTY_TYPE_IN_CONSTRUCTOR, valueParameter, propertyOrClassVisibility, restrictingByProperty
+                        reportExposureForDeprecation(
+                            EXPOSED_PROPERTY_TYPE_IN_CONSTRUCTOR,
+                            valueParameter.nameIdentifier ?: valueParameter,
+                            propertyOrClassVisibility,
+                            restrictingByProperty
                         )
                         result = false
                     }
