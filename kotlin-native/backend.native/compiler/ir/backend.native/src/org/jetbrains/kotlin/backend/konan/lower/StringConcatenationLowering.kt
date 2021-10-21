@@ -16,7 +16,6 @@ import org.jetbrains.kotlin.ir.util.constructors
 import org.jetbrains.kotlin.ir.util.functions
 import org.jetbrains.kotlin.ir.visitors.transformChildrenVoid
 import org.jetbrains.kotlin.name.Name
-import org.jetbrains.kotlin.util.OperatorNameConventions
 
 /**
  * This lowering pass replaces [IrStringConcatenation]s with StringBuilder appends.
@@ -76,22 +75,19 @@ internal class StringConcatenationLowering(context: Context) : FileLoweringPass,
                     builder.irCall(symbols.extensionToString).apply {
                         extensionReceiver = argument
                     }
-                else builder.irCall(
-                        irBuiltIns.anyClass.functions
-                                .single { it.owner.name.asString() == "toString" }).apply {
+                else builder.irCall(symbols.memberToString).apply {
                     dispatchReceiver = argument
                 }
             }
 
             arguments.size == 2 && arguments[0].type.isStringClassType() ->
                 if (arguments[0].type.isNullable())
-                    builder.irCall(symbols.stringPlus).apply {
+                    builder.irCall(symbols.extensionStringPlus).apply {
                         extensionReceiver = arguments[0]
                         putValueArgument(0, arguments[1])
                     }
                 else
-                    builder.irCall(symbols.string.functions
-                            .single { it.owner.name == OperatorNameConventions.PLUS }).apply {
+                    builder.irCall(symbols.memberStringPlus).apply {
                         dispatchReceiver = arguments[0]
                         putValueArgument(0, arguments[1])
                     }

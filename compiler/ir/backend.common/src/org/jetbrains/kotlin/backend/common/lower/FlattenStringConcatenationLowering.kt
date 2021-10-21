@@ -8,7 +8,6 @@ package org.jetbrains.kotlin.backend.common.lower
 import org.jetbrains.kotlin.backend.common.CommonBackendContext
 import org.jetbrains.kotlin.backend.common.FileLoweringPass
 import org.jetbrains.kotlin.backend.common.phaser.makeIrFilePhase
-import org.jetbrains.kotlin.builtins.StandardNames
 import org.jetbrains.kotlin.ir.IrElement
 import org.jetbrains.kotlin.ir.declarations.IrFile
 import org.jetbrains.kotlin.ir.declarations.IrSimpleFunction
@@ -17,7 +16,6 @@ import org.jetbrains.kotlin.ir.expressions.IrExpression
 import org.jetbrains.kotlin.ir.expressions.IrStringConcatenation
 import org.jetbrains.kotlin.ir.expressions.impl.IrStringConcatenationImpl
 import org.jetbrains.kotlin.ir.types.*
-import org.jetbrains.kotlin.ir.util.fqNameWhenAvailable
 import org.jetbrains.kotlin.ir.visitors.IrElementTransformerVoid
 import org.jetbrains.kotlin.ir.visitors.IrElementVisitorVoid
 import org.jetbrains.kotlin.ir.visitors.acceptChildrenVoid
@@ -67,103 +65,62 @@ val flattenStringConcatenationPhase = makeIrFilePhase(
  */
 class FlattenStringConcatenationLowering(val context: CommonBackendContext) : FileLoweringPass, IrElementTransformerVoid() {
 
-    companion object {
-        // There are two versions of String.plus in the library. One for nullable and one for non-nullable strings.
-        // The version for nullable strings has FqName kotlin.plus, the version for non-nullable strings
-        // is a member function of kotlin.String (with FqName kotlin.String.plus)
-        private val PARENT_NAMES = setOf(
-            StandardNames.BUILT_INS_PACKAGE_FQ_NAME,
-            StandardNames.FqNames.string.toSafe()
-        )
+    /** @return true if the function is Any.toString or an override of Any.toString */
+    val IrSimpleFunction.isToString: Boolean
+        get() = symbol == context.ir.symbols.memberToString || overriddenSymbols.contains(context.ir.symbols.memberToString)
 
-        /** @return true if the given expression is a call to [String.plus] */
-        private val IrCall.isStringPlusCall: Boolean
-            get() {
-                val function = symbol.owner
-                val receiver = dispatchReceiver ?: extensionReceiver
+    /** @return true if the given expression is a call to [toString] */
+    private val IrCall.isToStringCall: Boolean
+        get() {
+            if (superQualifierSymbol != null)
+                return false
 
-                return receiver != null
-                        && receiver.type.isStringClassType()
-                        && function.returnType.isStringClassType()
-                        && function.valueParameters.size == 1
-                        && function.name.asString() == "plus"
-                        && function.fqNameWhenAvailable?.parent() in PARENT_NAMES
+            val function = symbol.owner as? IrSimpleFunction
+                ?: return false
+
+            return function.isToString || function.symbol == context.ir.symbols.extensionToString
+        }
+
+    /** @return true if the given expression is a call to [Any?.toString] or a call of [toString] on a primitive type. */
+    private val IrCall.isSpecialToStringCall: Boolean
+        get() = isToStringCall && dispatchReceiver?.type?.isPrimitiveType() != false
+
+    /** @return true if the given expression is a [IrStringConcatenation], or an [IrCall] to [String.plus]. */
+    private fun isStringConcatenationExpression(expression: IrExpression): Boolean =
+        (expression is IrStringConcatenation) || (expression is IrCall) && context.ir.symbols.isStringPlus(expression.symbol)
+
+    /** Recursively collects string concatenation arguments from the given expression. */
+    private fun collectStringConcatenationArguments(expression: IrExpression): List<IrExpression> {
+        val arguments = mutableListOf<IrExpression>()
+        expression.acceptChildrenVoid(object : IrElementVisitorVoid {
+
+            override fun visitElement(element: IrElement) {
+                // Theoretically this is unreachable code since all descendants of IrExpressions are IrExpressions.
+                element.acceptChildrenVoid(this)
             }
 
-        /** @return true if the function is Any.toString or an override of Any.toString */
-        val IrSimpleFunction.isToString: Boolean
-            get() {
-                if (name.asString() != "toString" || valueParameters.size != 0 || !returnType.isString())
-                    return false
-
-                return (dispatchReceiverParameter != null && extensionReceiverParameter == null
-                        && (dispatchReceiverParameter?.type?.isAny() == true || this.overriddenSymbols.isNotEmpty()))
-            }
-
-        /** @return true if the function is Any?.toString */
-        private val IrSimpleFunction.isNullableToString: Boolean
-            get() {
-                if (name.asString() != "toString" || valueParameters.size != 0 || !returnType.isString())
-                    return false
-
-                return dispatchReceiverParameter == null
-                        && extensionReceiverParameter?.type?.isNullableAny() == true
-                        && fqNameWhenAvailable?.parent() == StandardNames.BUILT_INS_PACKAGE_FQ_NAME
-            }
-
-        /** @return true if the given expression is a call to [toString] */
-        private val IrCall.isToStringCall: Boolean
-            get() {
-                if (superQualifierSymbol != null)
-                    return false
-
-                val function = symbol.owner as? IrSimpleFunction
-                    ?: return false
-
-                return function.isToString || function.isNullableToString
-            }
-
-        /** @return true if the given expression is a call to [Any?.toString] or a call of [toString] on a primitive type. */
-        private val IrCall.isSpecialToStringCall: Boolean
-            get() = isToStringCall && dispatchReceiver?.type?.isPrimitiveType() != false
-
-        /** @return true if the given expression is a [IrStringConcatenation], or an [IrCall] to [String.plus]. */
-        private fun isStringConcatenationExpression(expression: IrExpression): Boolean =
-            (expression is IrStringConcatenation) || (expression is IrCall) && expression.isStringPlusCall
-
-        /** Recursively collects string concatenation arguments from the given expression. */
-        private fun collectStringConcatenationArguments(expression: IrExpression): List<IrExpression> {
-            val arguments = mutableListOf<IrExpression>()
-            expression.acceptChildrenVoid(object : IrElementVisitorVoid {
-
-                override fun visitElement(element: IrElement) {
-                    // Theoretically this is unreachable code since all descendants of IrExpressions are IrExpressions.
-                    element.acceptChildrenVoid(this)
-                }
-
-                override fun visitCall(expression: IrCall) {
-                    if (isStringConcatenationExpression(expression) || expression.isToStringCall) {
-                        // Recursively collect from call arguments.
-                        expression.acceptChildrenVoid(this)
-                    } else {
-                        // Add call itself as an argument.
-                        arguments.add(expression)
-                    }
-                }
-
-                override fun visitStringConcatenation(expression: IrStringConcatenation) {
-                    // Recursively collect from concatenation arguments.
+            override fun visitCall(expression: IrCall) {
+                if (isStringConcatenationExpression(expression) || expression.isToStringCall) {
+                    // Recursively collect from call arguments.
                     expression.acceptChildrenVoid(this)
-                }
-
-                override fun visitExpression(expression: IrExpression) {
-                    // These IrExpressions are neither IrCalls nor IrStringConcatenations and should be added as an argument.
+                } else {
+                    // Add call itself as an argument.
                     arguments.add(expression)
                 }
-            })
+            }
 
-            return arguments
-        }
+            override fun visitStringConcatenation(expression: IrStringConcatenation) {
+                // Recursively collect from concatenation arguments.
+                expression.acceptChildrenVoid(this)
+            }
+
+            override fun visitExpression(expression: IrExpression) {
+                // These IrExpressions are neither IrCalls nor IrStringConcatenations and should be added as an argument.
+                arguments.add(expression)
+            }
+        })
+
+        return arguments
     }
 
     override fun lower(irFile: IrFile) {
