@@ -326,10 +326,9 @@ internal class FunctionReferenceLowering(val context: Context): FileLoweringPass
                 addOverride("computeFqName") { irString(functionReferenceTarget.computeFullName()) }
 
 
-                val receiver = boundFunctionParameters.singleOrNull()
-                if (receiver?.descriptor is ReceiverParameterDescriptor) {
+                if (functionReference.dispatchReceiver != null) {
                     addOverrideInner("computeReceiver") { f ->
-                        irGetField(irGet(f.dispatchReceiverParameter!!), argumentToPropertiesMap[receiver]!!)
+                        irGetField(irGet(f.dispatchReceiverParameter!!), argumentToPropertiesMap[boundFunctionParameters.singleOrNull()]!!)
                     }
                 }
             }
@@ -379,7 +378,7 @@ internal class FunctionReferenceLowering(val context: Context): FileLoweringPass
         fun build(): BuiltFunctionReference {
             val clazz = buildClass()
             val constructor = buildConstructor()
-            val arguments = functionReference.getArguments()
+            val arguments = functionReference.getArgumentsWithIr()
             val expression = if (arguments.isEmpty()) {
                 irBuilder.irConstantObject(clazz, emptyMap())
             } else {
