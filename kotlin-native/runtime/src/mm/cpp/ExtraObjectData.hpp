@@ -57,9 +57,6 @@ public:
         if (hasPointerBits(pointer, WEAK_REF_TAG)) return clearPointerBits(pointer, WEAK_REF_TAG);
         return nullptr;
     }
-    void SetWeakReferenceCounter(ObjHeader* counter) noexcept {
-        weakReferenceCounter_ = setPointerBits(counter, WEAK_REF_TAG);
-    }
     ObjHeader* GetOrSetWeakReferenceCounter(ObjHeader* object, ObjHeader* counter) noexcept {
         if (weakReferenceCounter_.compare_exchange_strong(object, setPointerBits(counter, WEAK_REF_TAG))) {
             return counter;

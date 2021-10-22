@@ -250,7 +250,8 @@ public:
         objectFactoryThreadQueue_.Publish();
         auto& weakCounter = WeakCounter::FromObjHeader(weakCounterHeader);
         auto& extraObjectData = InstallExtraData(objHeader);
-        extraObjectData.SetWeakReferenceCounter(weakCounter.header());
+        auto *setHeader = extraObjectData.GetOrSetWeakReferenceCounter(objHeader, weakCounter.header());
+        EXPECT_EQ(setHeader,  weakCounter.header());
         weakCounter->referred = objHeader;
         return weakCounter;
     }
