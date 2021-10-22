@@ -31842,6 +31842,12 @@ public class FirBlackBoxCodegenTestGenerated extends AbstractFirBlackBoxCodegenT
             }
 
             @Test
+            @TestMetadata("forInSumDownToSum.kt")
+            public void testForInSumDownToSum() throws Exception {
+                runTest("compiler/testData/codegen/box/ranges/forInDownTo/forInSumDownToSum.kt");
+            }
+
+            @Test
             @TestMetadata("forIntInDownTo.kt")
             public void testForIntInDownTo() throws Exception {
                 runTest("compiler/testData/codegen/box/ranges/forInDownTo/forIntInDownTo.kt");
@@ -36134,6 +36140,12 @@ public class FirBlackBoxCodegenTestGenerated extends AbstractFirBlackBoxCodegenT
                 @TestMetadata("kt49335.kt")
                 public void testKt49335() throws Exception {
                     runTest("compiler/testData/codegen/box/reflection/annotations/repeatable/kt49335.kt");
+                }
+
+                @Test
+                @TestMetadata("kt49399.kt")
+                public void testKt49399() throws Exception {
+                    runTest("compiler/testData/codegen/box/reflection/annotations/repeatable/kt49399.kt");
                 }
 
                 @Test
