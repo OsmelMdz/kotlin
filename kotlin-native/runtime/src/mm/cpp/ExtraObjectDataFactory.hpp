@@ -14,7 +14,7 @@
 namespace kotlin {
 namespace mm {
 
-// Registry for all objects that have references outside of Kotlin.
+// Registry for extra data, attached to some kotlin objects: weak refs, associated objects, ...
 class ExtraObjectDataFactory : Pinned {
     using Mutex = SpinLock<MutexThreadStateHandling::kIgnore>;
     using Queue = MultiSourceQueue<mm::ExtraObjectData, Mutex>;
@@ -39,7 +39,7 @@ public:
     void DestroyExtraObjectData(mm::ThreadData* threadData, ExtraObjectData& data) noexcept;
     void DestroyExtraObjectData(ThreadQueue& threadQueue, ExtraObjectData& data) noexcept;
 
-    // Collect stable references from thread corresponding to `threadData`. Must be called by the thread
+    // Collect extra data objects from thread corresponding to `threadData`. Must be called by the thread
     // when it's asked by GC to stop.
     void ProcessThread(mm::ThreadData* threadData) noexcept;
 
