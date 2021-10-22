@@ -37,7 +37,8 @@ fun <F : FirClassLikeDeclaration> F.runAllPhasesForLocalClass(
         components.scopeSession,
         components.createCurrentScopeList(),
         localClassesNavigationInfo,
-        firProviderInterceptor
+        firProviderInterceptor,
+        components.file,
     )
     runTypeResolvePhaseForLocalClass(
         components.session,

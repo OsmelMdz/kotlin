@@ -23,7 +23,7 @@ package impl
 import api.*
 
 class NullArgumentMapping : ArgumentMapping {
-    // Return type should be api.ApplicabilityResult, in fact it's impl.ApplicabilityResult
-    override fun highlightingApplicabilities(): ApplicabilityResult = <!INVISIBLE_REFERENCE, RETURN_TYPE_MISMATCH!>object : ApplicabilityResult {
-    }<!>
+    // This is api.ApplicabilityResult
+    override fun highlightingApplicabilities(): ApplicabilityResult = object : ApplicabilityResult {
+    }
 }

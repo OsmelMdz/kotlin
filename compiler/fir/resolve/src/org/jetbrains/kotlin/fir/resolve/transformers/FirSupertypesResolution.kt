@@ -83,13 +83,15 @@ fun <F : FirClassLikeDeclaration> F.runSupertypeResolvePhaseForLocalClass(
     currentScopeList: List<FirScope>,
     localClassesNavigationInfo: LocalClassesNavigationInfo,
     firProviderInterceptor: FirProviderInterceptor?,
+    useSiteFile: FirFile,
 ): F {
     val supertypeComputationSession = SupertypeComputationSession()
     val supertypeResolverVisitor = FirSupertypeResolverVisitor(
         session, supertypeComputationSession, scopeSession,
         currentScopeList.toPersistentList(),
         localClassesNavigationInfo,
-        firProviderInterceptor
+        firProviderInterceptor,
+        useSiteFile,
     )
 
     this.accept(supertypeResolverVisitor, null)
@@ -203,6 +205,7 @@ open class FirSupertypeResolverVisitor(
     private val scopeForLocalClass: PersistentList<FirScope>? = null,
     private val localClassesNavigationInfo: LocalClassesNavigationInfo? = null,
     private val firProviderInterceptor: FirProviderInterceptor? = null,
+    private val useSiteFile: FirFile? = null,
 ) : FirDefaultVisitor<Unit, Any?>() {
     private val supertypeGenerationExtensions = session.extensionService.supertypeGenerators
     private val classDeclarationsStack = ArrayDeque<FirRegularClass>()
@@ -300,10 +303,12 @@ open class FirSupertypeResolverVisitor(
         val scopes = prepareScopes(classLikeDeclaration)
 
         val transformer = FirSpecificTypeResolverTransformer(session)
-        val resolvedTypesRefs = resolveSuperTypeRefs(
-            transformer,
-            ScopeClassDeclaration(FirCompositeScope(scopes), classDeclarationsStack)
-        )
+        val resolvedTypesRefs = transformer.withFile(useSiteFile) {
+            resolveSuperTypeRefs(
+                transformer,
+                ScopeClassDeclaration(FirCompositeScope(scopes), classDeclarationsStack)
+            )
+        }
 
         supertypeComputationSession.storeSupertypes(classLikeDeclaration, resolvedTypesRefs)
         return resolvedTypesRefs
