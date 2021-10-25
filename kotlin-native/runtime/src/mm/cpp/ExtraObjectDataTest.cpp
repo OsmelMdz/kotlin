@@ -23,9 +23,20 @@ struct EmptyPayload {
     static constexpr std::array<Field, 0> kFields{};
 };
 
+class ExtraObjectDataTest : public testing::Test {
+public:
+    ExtraObjectDataTest() {}
+
+    ~ExtraObjectDataTest() {
+        mm::GlobalsRegistry::Instance().ClearForTests();
+        mm::GlobalData::Instance().extraObjectDataFactory().ClearForTests();
+        mm::GlobalData::Instance().objectFactory().ClearForTests();
+    }
+};
+
 } // namespace
 
-TEST(ExtraObjectDataTest, Install) {
+TEST_F(ExtraObjectDataTest, Install) {
     ScopedMemoryInit init;
     test_support::TypeInfoHolder type{test_support::TypeInfoHolder::ObjectBuilder<EmptyPayload>()};
     test_support::Object<EmptyPayload> object(type.typeInfo());
@@ -47,7 +58,7 @@ TEST(ExtraObjectDataTest, Install) {
     EXPECT_THAT(object.header()->type_info(), typeInfo);
 }
 
-TEST(ExtraObjectDataTest, ConcurrentInstall) {
+TEST_F(ExtraObjectDataTest, ConcurrentInstall) {
     ScopedMemoryInit init;
     test_support::TypeInfoHolder type{test_support::TypeInfoHolder::ObjectBuilder<EmptyPayload>()};
     test_support::Object<EmptyPayload> object(type.typeInfo());
@@ -58,30 +69,22 @@ TEST(ExtraObjectDataTest, ConcurrentInstall) {
     std::atomic<int> readyCount(0);
     std::vector<std::thread> threads;
     std::vector<mm::ExtraObjectData*> actual(kThreadCount, nullptr);
-    std::atomic<int> doneCount(0);
-    std::atomic<bool> canFinish(false);
 
     for (int i = 0; i < kThreadCount; ++i) {
-        threads.emplace_back([i, &actual, &object, &canStart, &readyCount, &doneCount, &canFinish]() {
+        threads.emplace_back([i, &actual, &object, &canStart, &readyCount]() {
             ScopedMemoryInit init;
             ++readyCount;
             while (!canStart) {
             }
             auto& extraData = mm::ExtraObjectData::Install(object.header());
             actual[i] = &extraData;
-            ++doneCount;
-            while (!canFinish) {
-
-            }
+            mm::GlobalData::Instance().threadRegistry().CurrentThreadData()->Publish();
         });
     }
 
     while (readyCount < kThreadCount) {
     }
     canStart = true;
-    while (doneCount < kThreadCount) {
-    }
-    canFinish = true;
     for (auto& t : threads) {
         t.join();
     }
@@ -89,6 +92,4 @@ TEST(ExtraObjectDataTest, ConcurrentInstall) {
     std::vector<mm::ExtraObjectData*> expected(kThreadCount, actual[0]);
 
     EXPECT_THAT(actual, testing::ElementsAreArray(expected));
-
-    mm::ExtraObjectData::Uninstall(object.header());
 }

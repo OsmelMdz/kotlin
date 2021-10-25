@@ -223,6 +223,7 @@ public:
 
     ~SameThreadMarkAndSweepTest() {
         mm::GlobalsRegistry::Instance().ClearForTests();
+        mm::GlobalData::Instance().extraObjectDataFactory().ClearForTests();
         mm::GlobalData::Instance().objectFactory().ClearForTests();
         mm::GlobalData::Instance().gcScheduler().ReplaceGCSchedulerDataForTests(
                 [](auto& config, auto scheduleGC) { return gc::internal::MakeGCSchedulerData(config, std::move(scheduleGC)); });
