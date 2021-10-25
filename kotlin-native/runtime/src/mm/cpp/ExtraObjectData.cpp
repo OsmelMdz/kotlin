@@ -86,7 +86,7 @@ void mm::ExtraObjectData::ClearWeakReferenceCounter() noexcept {
     // Not using `mm::SetHeapRef here`, because this code is called during sweep phase by the GC thread,
     // and so cannot affect marking.
     // TODO: Asserts on the above?
-    weakReferenceCounter_ = object;
+    weakReferenceCounterOrBaseObject_ = object;
 }
 
 mm::ExtraObjectData::~ExtraObjectData() {

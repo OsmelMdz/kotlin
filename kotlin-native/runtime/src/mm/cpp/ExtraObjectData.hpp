@@ -50,22 +50,22 @@ public:
 
     std::atomic<Flags>& flags() noexcept { return flags_; }
 
-    bool HasWeakReferenceCounter() noexcept { return hasPointerBits(weakReferenceCounter_.load(), WEAK_REF_TAG); }
+    bool HasWeakReferenceCounter() noexcept { return hasPointerBits(weakReferenceCounterOrBaseObject_.load(), WEAK_REF_TAG); }
     void ClearWeakReferenceCounter() noexcept;
     ObjHeader* GetWeakReferenceCounter() noexcept {
-        auto *pointer = weakReferenceCounter_.load();
+        auto *pointer = weakReferenceCounterOrBaseObject_.load();
         if (hasPointerBits(pointer, WEAK_REF_TAG)) return clearPointerBits(pointer, WEAK_REF_TAG);
         return nullptr;
     }
     ObjHeader* GetOrSetWeakReferenceCounter(ObjHeader* object, ObjHeader* counter) noexcept {
-        if (weakReferenceCounter_.compare_exchange_strong(object, setPointerBits(counter, WEAK_REF_TAG))) {
+        if (weakReferenceCounterOrBaseObject_.compare_exchange_strong(object, setPointerBits(counter, WEAK_REF_TAG))) {
             return counter;
         } else {
             return clearPointerBits(object, WEAK_REF_TAG); // on fail current value of counter is stored to object
         }
     }
     ObjHeader* GetBaseObject() noexcept {
-        auto *header = weakReferenceCounter_.load();
+        auto *header = weakReferenceCounterOrBaseObject_.load();
         if (hasPointerBits(header, WEAK_REF_TAG)) {
             return UnsafeWeakReferenceCounterGet(clearPointerBits(header, WEAK_REF_TAG));
         } else {
@@ -75,8 +75,7 @@ public:
 
     // info must be equal to objHeader->type_info(), but it needs to be loaded in advance to avoid data races
     explicit ExtraObjectData(ObjHeader* objHeader, const TypeInfo *info) noexcept :
-        typeInfo_(info),
-        weakReferenceCounter_(objHeader) {
+        typeInfo_(info), weakReferenceCounterOrBaseObject_(objHeader) {
     }
     ~ExtraObjectData();
 private:
@@ -90,7 +89,7 @@ private:
     void* associatedObject_ = nullptr;
 #endif
 
-    std::atomic<ObjHeader*> weakReferenceCounter_;
+    std::atomic<ObjHeader*> weakReferenceCounterOrBaseObject_;
 };
 
 } // namespace mm
